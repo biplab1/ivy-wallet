@@ -172,6 +172,9 @@ fun BoxWithConstraintsScope.EditTransactionScreen(screen: EditTransactionScreen)
         onDelete = {
             viewModel.onEvent(EditTransactionEvent.Delete)
         },
+        onDuplicate = {
+            viewModel.onEvent(EditTransactionEvent.Duplicate)
+        },
         onCreateAccount = {
             viewModel.onEvent(EditTransactionEvent.CreateAccount(it))
         },
@@ -223,6 +226,7 @@ private fun BoxWithConstraintsScope.UI(
     onSave: (closeScreen: Boolean) -> Unit,
     onSetHasChanges: (hasChanges: Boolean) -> Unit,
     onDelete: () -> Unit,
+    onDuplicate: () -> Unit,
     onCreateAccount: (CreateAccountData) -> Unit,
     onExchangeRateChange: (Double?) -> Unit = { },
     onTagOperation: (EditTransactionEvent.TagEvent) -> Unit = {},
@@ -290,7 +294,9 @@ private fun BoxWithConstraintsScope.UI(
             },
             onChangeTransactionTypeModal = {
                 changeTransactionTypeModalVisible = true
-            }
+            },
+            showDuplicateButton = true,
+            onDuplicate = onDuplicate
         )
 
         Spacer(Modifier.height(32.dp))
@@ -379,7 +385,9 @@ private fun BoxWithConstraintsScope.UI(
                 }
             },
             onEditTime = {
-                ivyContext.timePicker { time ->
+                ivyContext.timePicker(
+                    initialTime = dateTime?.toLocalTime()
+                ) { time ->
                     onSetTime(time)
                 }
             }
@@ -696,6 +704,7 @@ private fun BoxWithConstraintsScope.Preview(isDark: Boolean = false) {
             onSave = {},
             onSetHasChanges = {},
             onDelete = {},
+            onDuplicate = {},
             onCreateAccount = { },
             onSetDate = {},
             onSetTime = {},
