@@ -1,5 +1,6 @@
 package com.ivy.reports
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -45,6 +46,9 @@ import com.ivy.data.model.TagId
 import com.ivy.data.model.primitive.ColorInt
 import com.ivy.data.model.primitive.IconAsset
 import com.ivy.data.model.primitive.NotBlankTrimmedString
+import com.ivy.design.api.LocalTimeConverter
+import com.ivy.design.api.LocalTimeFormatter
+import com.ivy.design.api.LocalTimeProvider
 import com.ivy.design.l0_system.UI
 import com.ivy.design.l0_system.style
 import com.ivy.domain.legacy.ui.theme.components.ListItem
@@ -85,6 +89,7 @@ import kotlinx.collections.immutable.toImmutableList
 import java.util.UUID
 import kotlin.math.roundToInt
 
+@SuppressLint("ComposeModifierMissing")
 @Suppress("LongMethod")
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -127,10 +132,16 @@ fun BoxWithConstraintsScope.FilterOverlay(
     var maxAmountModalShown by remember { mutableStateOf(false) }
     var includeKeywordModalShown by remember { mutableStateOf(false) }
     var excludeKeywordModalShown by remember { mutableStateOf(false) }
-    var tagModalVisible by remember { mutableStateOf(false) }
-    val selectedTags by remember(localFilter) {
+    var includedTagModalVisible by remember { mutableStateOf(false) }
+    var excludedTagModalVisible by remember { mutableStateOf(false) }
+    val includedTags by remember(localFilter) {
         derivedStateOf {
-            localFilter?.selectedTags?.toImmutableList() ?: persistentListOf()
+            localFilter?.includedTags?.toImmutableList() ?: persistentListOf()
+        }
+    }
+    val excludedTags by remember(localFilter) {
+        derivedStateOf {
+            localFilter?.excludedTags?.toImmutableList() ?: persistentListOf()
         }
     }
 
@@ -267,10 +278,13 @@ fun BoxWithConstraintsScope.FilterOverlay(
 
             FilterDivider()
 
-            OthersFilter(
+            TagsFilter(
                 filter = localFilter,
-                onTagButtonClick = {
-                    tagModalVisible = true
+                onIncludesTagButtonClick = {
+                    includedTagModalVisible = true
+                },
+                onExcludesTagButtonClick = {
+                    excludedTagModalVisible = true
                 }
             )
 
@@ -391,32 +405,66 @@ fun BoxWithConstraintsScope.FilterOverlay(
     }
 
     ShowTagModal(
-        visible = tagModalVisible,
+        visible = includedTagModalVisible,
         selectOnlyMode = true,
         onDismiss = {
-            tagModalVisible = false
+            includedTagModalVisible = false
             // Reset TagList, avoids showing incorrect tag list if user had searched for a tag previously
             onTagSearch("")
         },
         allTagList = allTags,
-        selectedTagList = selectedTags,
+        selectedTagList = includedTags,
         onTagAdd = {
-                   // Do Nothing
+            // Do Nothing
         },
         onTagEdit = { oldTag, newTag ->
-                    // Do Nothing
+            // Do Nothing
         },
         onTagDelete = {
-                      // Do Nothing
+            // Do Nothing
         },
         onTagSelected = {
             localFilter = nonNullFilter(localFilter).copy(
-                selectedTags = nonNullFilter(localFilter).selectedTags.plus(it.id)
+                includedTags = nonNullFilter(localFilter).includedTags.plus(it.id)
             )
         },
         onTagDeSelected = {
-           localFilter = nonNullFilter(localFilter).copy(
-                selectedTags = nonNullFilter(localFilter).selectedTags.minus(it.id)
+            localFilter = nonNullFilter(localFilter).copy(
+                includedTags = nonNullFilter(localFilter).includedTags.minus(it.id)
+            )
+        },
+        onTagSearch = {
+            onTagSearch(it)
+        }
+    )
+
+    ShowTagModal(
+        visible = excludedTagModalVisible,
+        selectOnlyMode = true,
+        onDismiss = {
+            excludedTagModalVisible = false
+            // Reset TagList, avoids showing incorrect tag list if user had searched for a tag previously
+            onTagSearch("")
+        },
+        allTagList = allTags,
+        selectedTagList = excludedTags,
+        onTagAdd = {
+            // Do Nothing
+        },
+        onTagEdit = { oldTag, newTag ->
+            // Do Nothing
+        },
+        onTagDelete = {
+            // Do Nothing
+        },
+        onTagSelected = {
+            localFilter = nonNullFilter(localFilter).copy(
+                excludedTags = nonNullFilter(localFilter).excludedTags.plus(it.id)
+            )
+        },
+        onTagDeSelected = {
+            localFilter = nonNullFilter(localFilter).copy(
+                excludedTags = nonNullFilter(localFilter).excludedTags.minus(it.id)
             )
         },
         onTagSearch = {
@@ -426,18 +474,45 @@ fun BoxWithConstraintsScope.FilterOverlay(
 }
 
 @Composable
-fun ColumnScope.OthersFilter(
+fun ColumnScope.TagsFilter(
     filter: ReportFilter?,
-    onTagButtonClick: () -> Unit,
+    onIncludesTagButtonClick: () -> Unit,
+    onExcludesTagButtonClick: () -> Unit,
+    @Suppress("UnusedParameter") modifier: Modifier = Modifier
 ) {
     FilterTitleText(
-        text = stringResource(R.string.others_optional),
+        text = stringResource(R.string.tags_optional),
         active = false
     )
 
+    Spacer(Modifier.height(12.dp))
+
+    Text(
+        modifier = Modifier.padding(start = 32.dp),
+        text = stringResource(R.string.includes_uppercase),
+        style = UI.typo.b2.style(
+            fontWeight = FontWeight.ExtraBold
+        )
+    )
+
     TagFilter(
-        selectedTags = filter?.selectedTags?.toImmutableList() ?: persistentListOf(),
-        onTagButtonClick = onTagButtonClick,
+        selectedTags = filter?.includedTags?.toImmutableList() ?: persistentListOf(),
+        onTagButtonClick = onIncludesTagButtonClick,
+    )
+
+    Spacer(Modifier.height(20.dp))
+
+    Text(
+        modifier = Modifier.padding(start = 32.dp),
+        text = stringResource(R.string.excludes_uppercase),
+        style = UI.typo.b2.style(
+            fontWeight = FontWeight.ExtraBold
+        )
+    )
+
+    TagFilter(
+        selectedTags = filter?.excludedTags?.toImmutableList() ?: persistentListOf(),
+        onTagButtonClick = onExcludesTagButtonClick,
     )
 }
 
@@ -447,14 +522,6 @@ fun ColumnScope.TagFilter(
     onTagButtonClick: () -> Unit,
     @Suppress("UnusedParameter") modifier: Modifier = Modifier
 ) {
-    Text(
-        modifier = Modifier.padding(start = 32.dp, top = 16.dp),
-        text = stringResource(R.string.tags),
-        style = UI.typo.b2.style(
-            fontWeight = FontWeight.ExtraBold
-        )
-    )
-
     Spacer(Modifier.height(12.dp))
 
     if (selectedTags.isEmpty()) {
@@ -471,6 +538,7 @@ fun ColumnScope.TagFilter(
     }
 }
 
+@SuppressLint("ComposeContentEmitterReturningValues", "ComposeMultipleContentEmitters")
 @Composable
 private fun TypeFilter(
     filter: ReportFilter?,
@@ -518,6 +586,7 @@ private fun TypeFilter(
     )
 }
 
+@SuppressLint("ComposeParameterOrder")
 @Composable
 private fun TypeFilterCheckbox(
     modifier: Modifier = Modifier,
@@ -553,6 +622,7 @@ private fun TypeFilterCheckbox(
     }
 }
 
+@SuppressLint("ComposeContentEmitterReturningValues", "ComposeMultipleContentEmitters")
 @Composable
 private fun PeriodFilter(
     filter: ReportFilter?,
@@ -571,7 +641,12 @@ private fun PeriodFilter(
             .fillMaxWidth()
             .padding(horizontal = 24.dp),
         iconStart = R.drawable.ic_calendar,
-        text = filter?.period?.toDisplayLong(ivyWalletCtx().startDayOfMonth)
+        text = filter?.period?.toDisplayLong(
+            startDateOfMonth = ivyWalletCtx().startDayOfMonth,
+            timeProvider = LocalTimeProvider.current,
+            timeConverter = LocalTimeConverter.current,
+            timeFormatter = LocalTimeFormatter.current,
+        )
             ?.capitalizeLocal()
             ?: stringResource(R.string.select_time_range),
         padding = 12.dp,
@@ -580,6 +655,7 @@ private fun PeriodFilter(
     }
 }
 
+@SuppressLint("ComposeContentEmitterReturningValues", "ComposeMultipleContentEmitters")
 @Composable
 private fun AccountsFilter(
     allAccounts: List<Account>,
@@ -648,6 +724,7 @@ private fun AccountsFilter(
     }
 }
 
+@SuppressLint("ComposeContentEmitterReturningValues", "ComposeMultipleContentEmitters")
 @Composable
 private fun CategoriesFilter(
     allCategories: List<Category>,
@@ -759,6 +836,7 @@ private fun ListFilterTitle(
     }
 }
 
+@SuppressLint("ComposeContentEmitterReturningValues", "ComposeMultipleContentEmitters")
 @Composable
 private fun AmountFilter(
     baseCurrency: String,
@@ -822,6 +900,7 @@ private fun AmountFilter(
     }
 }
 
+@SuppressLint("ComposeContentEmitterReturningValues", "ComposeMultipleContentEmitters")
 @Composable
 private fun KeywordsFilter(
     filter: ReportFilter?,
@@ -834,7 +913,7 @@ private fun KeywordsFilter(
     FilterTitleText(
         text = stringResource(R.string.keywords_optional),
         active = filter != null &&
-            (filter.includeKeywords.isNotEmpty() || filter.excludeKeywords.isNotEmpty())
+                (filter.includeKeywords.isNotEmpty() || filter.excludeKeywords.isNotEmpty())
     )
 
     Spacer(Modifier.height(12.dp))
@@ -951,6 +1030,7 @@ private fun AddKeywordButton(text: String, modifier: Modifier = Modifier, onCLic
 
 private class AddKeywordButton
 
+@SuppressLint("ComposeContentEmitterReturningValues", "ComposeMultipleContentEmitters")
 @Composable
 private fun FilterDivider() {
     Spacer(modifier = Modifier.height(24.dp))

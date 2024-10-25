@@ -50,6 +50,7 @@ import com.ivy.legacy.utils.drawColoredShadow
 import com.ivy.navigation.AttributionsScreen
 import com.ivy.navigation.ContributorsScreen
 import com.ivy.navigation.ExchangeRatesScreen
+import com.ivy.navigation.FeaturesScreen
 import com.ivy.navigation.ImportScreen
 import com.ivy.navigation.Navigation
 import com.ivy.navigation.ReleasesScreen
@@ -251,7 +252,7 @@ private fun BoxWithConstraintsScope.UI(
             SettingsDefaultButton(
                 icon = R.drawable.ic_vue_security_shield,
                 text = stringResource(R.string.backup_data),
-                iconPadding = 6.dp
+                iconPadding = 8.dp
             ) {
                 onBackupData()
             }
@@ -280,11 +281,13 @@ private fun BoxWithConstraintsScope.UI(
                 icon = when (theme) {
                     Theme.LIGHT -> R.drawable.home_more_menu_light_mode
                     Theme.DARK -> R.drawable.home_more_menu_dark_mode
+                    Theme.AMOLED_DARK -> R.drawable.home_more_menu_amoled_dark_mode
                     Theme.AUTO -> R.drawable.home_more_menu_auto_mode
                 },
                 label = when (theme) {
                     Theme.LIGHT -> stringResource(R.string.light_mode)
                     Theme.DARK -> stringResource(R.string.dark_mode)
+                    Theme.AMOLED_DARK -> stringResource(R.string.amoled_mode)
                     Theme.AUTO -> stringResource(R.string.auto_mode)
                 }
             ) {
@@ -306,6 +309,7 @@ private fun BoxWithConstraintsScope.UI(
             if (languageOptionVisible) {
                 SettingsDefaultButton(
                     icon = R.drawable.ic_vue_location_global,
+                    iconPadding = 6.dp,
                     text = stringResource(R.string.language),
                     description = Locale.getDefault().displayName
                 ) {
@@ -377,6 +381,12 @@ private fun BoxWithConstraintsScope.UI(
             ) {
                 chooseStartDateOfMonthVisible = true
             }
+
+            Spacer(Modifier.height(12.dp))
+
+            CustomFeatures(
+                onClick = { nav.navigateTo(FeaturesScreen) }
+            )
         }
 
 //        item {
@@ -421,7 +431,7 @@ private fun BoxWithConstraintsScope.UI(
 
             SettingsPrimaryButton(
                 icon = R.drawable.github_logo,
-                iconPadding = 8.dp,
+                iconPadding = 10.dp,
                 text = stringResource(R.string.ivy_wallet_is_opensource),
                 backgroundGradient = Gradient.solid(MediumBlack)
             ) {
@@ -581,7 +591,7 @@ private fun StartDateOfMonth(
             icon = R.drawable.ic_custom_calendar_m,
             tint = UI.colors.pureInverse,
             iconScale = IconScale.M,
-            padding = 0.dp
+            padding = 2.dp
         )
 
         Spacer(Modifier.width(8.dp))
@@ -610,13 +620,42 @@ private fun StartDateOfMonth(
 }
 
 @Composable
+private fun CustomFeatures(
+    onClick: () -> Unit
+) {
+    SettingsButtonRow(
+        onClick = onClick
+    ) {
+        Spacer(Modifier.width(12.dp))
+
+        IvyIconScaled(
+            icon = R.drawable.ic_custom_programming_m,
+            tint = UI.colors.pureInverse,
+            iconScale = IconScale.M,
+            padding = 0.dp
+        )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Text(
+            modifier = Modifier.padding(vertical = 20.dp),
+            text = stringResource(R.string.advanced_features),
+            style = UI.typo.b2.style(
+                color = UI.colors.pureInverse,
+                fontWeight = FontWeight.Bold
+            )
+        )
+    }
+}
+
+@Composable
 private fun IvyTelegram() {
     val rootActivity = rootScreen()
     SettingsPrimaryButton(
         icon = R.drawable.ic_telegram_24dp,
         text = stringResource(R.string.ivy_telegram),
         backgroundGradient = Gradient.solid(Blue),
-        iconPadding = 8.dp
+        iconPadding = 10.dp
     ) {
         rootActivity.openUrlInBrowser(Constants.URL_IVY_TELEGRAM_INVITE)
     }
@@ -673,7 +712,7 @@ private fun Releases(nav: Navigation) {
     SettingsDefaultButton(
         icon = R.drawable.ic_vue_money_tag,
         text = stringResource(R.string.releases),
-        iconPadding = 10.dp
+        iconPadding = 8.dp
     ) {
         nav.navigateTo(ReleasesScreen)
     }
@@ -684,7 +723,7 @@ private fun Contributors(nav: Navigation) {
     SettingsDefaultButton(
         icon = R.drawable.ic_vue_people_people,
         text = stringResource(R.string.project_contributors),
-        iconPadding = 6.dp
+        iconPadding = 8.dp
     ) {
         nav.navigateTo(ContributorsScreen)
     }

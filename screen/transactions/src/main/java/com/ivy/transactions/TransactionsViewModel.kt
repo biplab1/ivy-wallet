@@ -12,8 +12,9 @@ import com.ivy.base.legacy.Transaction
 import com.ivy.base.legacy.TransactionHistoryItem
 import com.ivy.base.legacy.stringRes
 import com.ivy.base.model.TransactionType
+import com.ivy.base.time.TimeConverter
+import com.ivy.base.time.TimeProvider
 import com.ivy.data.db.dao.read.AccountDao
-import com.ivy.data.db.dao.write.WriteCategoryDao
 import com.ivy.data.db.dao.write.WritePlannedPaymentRuleDao
 import com.ivy.data.model.AccountId
 import com.ivy.data.model.Category
@@ -27,6 +28,7 @@ import com.ivy.data.repository.TagRepository
 import com.ivy.data.repository.TransactionRepository
 import com.ivy.data.repository.mapper.TransactionMapper
 import com.ivy.design.l0_system.RedLight
+import com.ivy.domain.features.Features
 import com.ivy.frp.then
 import com.ivy.legacy.IvyWalletCtx
 import com.ivy.legacy.data.model.TimePeriod
@@ -89,10 +91,12 @@ class TransactionsViewModel @Inject constructor(
     private val calcTrnsIncomeExpenseAct: LegacyCalcTrnsIncomeExpenseAct,
     private val exchangeAct: ExchangeAct,
     private val transactionRepository: TransactionRepository,
-    private val categoryWriter: WriteCategoryDao,
     private val plannedPaymentRuleWriter: WritePlannedPaymentRuleDao,
     private val transactionMapper: TransactionMapper,
     private val tagRepository: TagRepository,
+    private val timeProvider: TimeProvider,
+    private val timeConverter: TimeConverter,
+    private val features: Features
 ) : ComposeViewModel<TransactionsState, TransactionsEvent>() {
 
     private val period = mutableStateOf(ivyContext.selectedPeriod)
@@ -159,8 +163,14 @@ class TransactionsViewModel @Inject constructor(
             enableDeletionButton = getEnableDeletionButton(),
             skipAllModalVisible = getSkipAllModalVisible(),
             deleteModal1Visible = getDeleteModal1Visible(),
-            choosePeriodModal = getChoosePeriodModal()
+            choosePeriodModal = getChoosePeriodModal(),
+            showAccountColorsInTransactions = getShouldShowAccountSpecificColorInTransactions()
         )
+    }
+
+    @Composable
+    fun getShouldShowAccountSpecificColorInTransactions(): Boolean {
+        return features.showAccountColorsInTransactions.asEnabledState()
     }
 
     @Composable
@@ -330,7 +340,7 @@ class TransactionsViewModel @Inject constructor(
             accountDao.findById(accountId)?.toLegacyDomain() ?: error("account not found")
         }
         account.value = initialAccount
-        val range = period.value.toRange(ivyContext.startDayOfMonth)
+        val range = period.value.toRange(ivyContext.startDayOfMonth, timeConverter, timeProvider)
 
         if (initialAccount.currency.isNotNullOrBlank()) {
             currency.value = initialAccount.currency!!
@@ -430,7 +440,7 @@ class TransactionsViewModel @Inject constructor(
             categoryRepository.findById(CategoryId(categoryId)) ?: error("category not found")
         }
         category.value = initialCategory
-        val range = period.value.toRange(ivyContext.startDayOfMonth)
+        val range = period.value.toRange(ivyContext.startDayOfMonth, timeConverter, timeProvider)
 
         balance.doubleValue = ioThread {
             categoryLogic.calculateCategoryBalance(initialCategory, range, accountFilterSet)
@@ -499,7 +509,8 @@ class TransactionsViewModel @Inject constructor(
                 categoryRepository.findById(CategoryId(categoryId)) ?: error("category not found")
             }
             category.value = initialCategory
-            val range = period.value.toRange(ivyContext.startDayOfMonth)
+            val range =
+                period.value.toRange(ivyContext.startDayOfMonth, timeConverter, timeProvider)
 
             val incomeTrans = transactions.filter {
                 it.categoryId == categoryId && it.type == TransactionType.INCOME
@@ -573,7 +584,7 @@ class TransactionsViewModel @Inject constructor(
     }
 
     private suspend fun initForUnspecifiedCategory() {
-        val range = period.value.toRange(ivyContext.startDayOfMonth)
+        val range = period.value.toRange(ivyContext.startDayOfMonth, timeConverter, timeProvider)
 
         balance.doubleValue = ioThread {
             categoryLogic.calculateUnspecifiedBalance(range)
@@ -735,7 +746,6 @@ class TransactionsViewModel @Inject constructor(
 
     private suspend fun deleteCategory(categoryId: UUID) {
         ioThread {
-            categoryWriter.deleteById(categoryId)
             categoryRepository.deleteById(CategoryId(categoryId))
 
             nav.back()

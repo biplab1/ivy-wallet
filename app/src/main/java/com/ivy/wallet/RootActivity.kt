@@ -31,20 +31,25 @@ import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
 import com.google.android.play.core.review.ReviewManagerFactory
 import com.ivy.IvyNavGraph
+import com.ivy.base.legacy.Theme
+import com.ivy.base.time.TimeConverter
+import com.ivy.base.time.TimeProvider
+import com.ivy.design.api.IvyDesign
 import com.ivy.design.api.IvyUI
+import com.ivy.design.system.IvyMaterial3Theme
 import com.ivy.domain.RootScreen
 import com.ivy.home.customerjourney.CustomerJourneyCardsProvider
 import com.ivy.legacy.Constants
 import com.ivy.legacy.IvyWalletCtx
 import com.ivy.legacy.appDesign
 import com.ivy.legacy.utils.activityForResultLauncher
-import com.ivy.legacy.utils.convertLocalToUTC
 import com.ivy.legacy.utils.sendToCrashlytics
 import com.ivy.legacy.utils.simpleActivityForResultLauncher
-import com.ivy.legacy.utils.timeNowLocal
 import com.ivy.navigation.Navigation
 import com.ivy.navigation.NavigationRoot
 import com.ivy.ui.R
+import com.ivy.ui.time.TimeFormatter
+import com.ivy.ui.time.impl.DateTimePicker
 import com.ivy.wallet.ui.applocked.AppLockedScreen
 import com.ivy.widget.balance.WalletBalanceWidgetReceiver
 import com.ivy.widget.transaction.AddTransactionWidget
@@ -66,6 +71,18 @@ class RootActivity : AppCompatActivity(), RootScreen {
     @Inject
     lateinit var customerJourneyLogic: CustomerJourneyCardsProvider
 
+    @Inject
+    lateinit var timeConverter: TimeConverter
+
+    @Inject
+    lateinit var timeProvider: TimeProvider
+
+    @Inject
+    lateinit var timeFormatter: TimeFormatter
+
+    @Inject
+    lateinit var dateTimePicker: DateTimePicker
+
     private lateinit var createFileLauncher: ActivityResultLauncher<String>
     private lateinit var onFileCreated: (fileUri: Uri) -> Unit
 
@@ -74,26 +91,11 @@ class RootActivity : AppCompatActivity(), RootScreen {
 
     private val viewModel: RootViewModel by viewModels()
 
-    @OptIn(
-        ExperimentalAnimationApi::class,
-        ExperimentalFoundationApi::class
-    )
+    @OptIn(ExperimentalFoundationApi::class, ExperimentalAnimationApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-
-        setupActivityForResultLaunchers()
-
-        // Make the app drawing area fullscreen (draw behind status and nav bars)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-
-        setupDatePicker()
-        setupTimePicker()
-
-        AddTransactionWidget.updateBroadcast(this)
-        AddTransactionWidgetCompact.updateBroadcast(this)
-        WalletBalanceWidgetReceiver.updateBroadcast(this)
-
+        setupApp()
         setContent {
             val viewModel: RootViewModel = viewModel()
             val isSystemInDarkTheme = isSystemInDarkTheme()
@@ -104,13 +106,14 @@ class RootActivity : AppCompatActivity(), RootScreen {
 
             val appLocked by viewModel.appLocked.collectAsState()
             when (appLocked) {
-                null -> {
-                    // display nothing
+                null -> { // display nothing
                 }
-
                 true -> {
                     IvyUI(
-                        design = appDesign(ivyContext)
+                        design = appDesign(ivyContext),
+                        timeConverter = timeConverter,
+                        timeProvider = timeProvider,
+                        timeFormatter = timeFormatter,
                     ) {
                         AppLockedScreen(
                             onShowOSBiometricsModal = {
@@ -129,14 +132,37 @@ class RootActivity : AppCompatActivity(), RootScreen {
                     NavigationRoot(navigation = navigation) { screen ->
                         IvyUI(
                             design = appDesign(ivyContext),
-                            includeSurface = screen?.isLegacy ?: true
+                            includeSurface = screen?.isLegacy ?: true,
+                            timeConverter = timeConverter,
+                            timeProvider = timeProvider,
+                            timeFormatter = timeFormatter,
                         ) {
                             IvyNavGraph(screen)
                         }
                     }
                 }
             }
+
+            IvyMaterial3Theme(
+                dark = isDarkThemeEnabled(
+                    ivyDesign = appDesign(ivyContext),
+                    systemDarkTheme = isSystemInDarkTheme
+                ),
+                isTrueBlack = appDesign(ivyContext).context().theme == Theme.AMOLED_DARK
+            ) {
+                dateTimePicker.Content()
+            }
         }
+    }
+
+    private fun setupApp() {
+        setupActivityForResultLaunchers()
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        setupDatePicker()
+        setupTimePicker()
+        AddTransactionWidget.updateBroadcast(this)
+        AddTransactionWidgetCompact.updateBroadcast(this)
+        WalletBalanceWidgetReceiver.updateBroadcast(this)
     }
 
     private companion object {
@@ -184,20 +210,33 @@ class RootActivity : AppCompatActivity(), RootScreen {
     }
 
     private fun setupTimePicker() {
-        ivyContext.onShowTimePicker = { onTimePicked ->
-            val nowLocal = timeNowLocal()
+        ivyContext.onShowTimePicker = { initialTime,
+                                        onTimePicked ->
+            val nowLocal = initialTime ?: timeProvider.localTimeNow()
+            val is24Hour = android.text.format.DateFormat.is24HourFormat(this)
+            val timeFormat = if (is24Hour) TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H
+
             val picker =
                 MaterialTimePicker.Builder()
-                    .setTimeFormat(TimeFormat.CLOCK_12H)
+                    .setTimeFormat(timeFormat)
                     .setHour(nowLocal.hour)
                     .setMinute(nowLocal.minute)
                     .build()
             picker.show(supportFragmentManager, "timePicker")
             picker.addOnPositiveButtonClickListener {
                 onTimePicked(
-                    LocalTime.of(picker.hour, picker.minute).convertLocalToUTC().withSecond(0)
+                    LocalTime.of(picker.hour, picker.minute).withSecond(0)
                 )
             }
+        }
+    }
+
+    private fun isDarkThemeEnabled(ivyDesign: IvyDesign, systemDarkTheme: Boolean): Boolean {
+        return when (ivyDesign.context().theme) {
+            Theme.LIGHT -> false
+            Theme.DARK -> true
+            Theme.AMOLED_DARK -> true
+            else -> systemDarkTheme
         }
     }
 
