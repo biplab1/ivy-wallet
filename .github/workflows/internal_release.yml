@@ -3,7 +3,7 @@ name: Internal Release
 on:
   push:
     branches:
-      - main
+      - fix-issue-104-trial
 
 jobs:
   google_play_release:
@@ -181,3 +181,64 @@ jobs:
                -F "reply_to_message_id=16118" \
                -F "caption=$CAPTION" \
                https://api.telegram.org/bot${{ secrets.BOTFATHER_TELEGRAM_BOT_TOKEN }}/sendDocument
+
+  signed_apk_release:
+    if: |
+      contains(github.event.head_commit.message, 'Automatic release')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout GIT
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for all branches and tags
+
+      - name: Verify Commit Author
+        id: verify_author
+        run: |
+          AUTHOR=$(git log -1 --pretty=format:'%an')
+          if [ "$AUTHOR" != "github-actions[bot]" ]; then
+            echo "Commit not authored by github-actions[bot], exiting."
+            exit 1
+          fi
+
+      - name: Setup Java SDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'adopt'
+          java-version: '18'
+
+      - name: Enable Gradle Wrapper caching (optimization)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # Decode Secrets for signed apk build
+      - name: Create JKS for signed apk release
+        run: |
+          echo "$SIGNING_KEYSTORE_JKS" > sign.jks.b64
+          base64 -d -i sign.jks.b64 > sign.jks
+        env:
+          SIGNING_KEYSTORE_JKS: ${{ secrets.SIGNING_KEYSTORE }}
+
+      #--------------------------------------------------------------------------------
+
+      - name: Build signed apk build
+        run: bundle exec fastlane signed_apk_build
+        env:
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+
+      - name: Upload signed apk to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-apk-release.apk
+          path: app/build/outputs/apk/release/signed-apk-release.apk

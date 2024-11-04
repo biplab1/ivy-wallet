@@ -50,6 +50,14 @@ platform :android do
         )
     end
 
+    platform :android do
+      desc "Build a signed APK for release"
+      lane :signed_apk_build do
+        gradle(task: "clean")
+        gradle(task: "assembleRelease")
+      end
+    end
+
     desc "Cleans the project"
     lane :clean do
         gradle(
