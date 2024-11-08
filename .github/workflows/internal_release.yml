@@ -189,6 +189,11 @@ jobs:
     permissions:
       contents: write
 
+    env:
+      SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+      SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+      SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+
     steps:
       - name: Checkout GIT
         uses: actions/checkout@v4
@@ -209,24 +214,6 @@ jobs:
         with:
           distribution: 'adopt'
           java-version: '18'
-# Install fast lane
-      - name: Setup Ruby (for Fastlane)
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.2'
-
-      - name: Install Fastlane
-        run: bundle install
-
-      - name: Enable Gradle Wrapper caching (optimization)
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
 
       # Decode Secrets for signed apk build
       - name: Create JKS for signed apk release
@@ -237,13 +224,8 @@ jobs:
           SIGNING_KEYSTORE_JKS: ${{ secrets.SIGNING_KEYSTORE }}
 
       #--------------------------------------------------------------------------------
-
-      - name: Build signed apk build
-        run: bundle exec fastlane signed_apk_build
-        env:
-          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+      - name: Build Signed APK
+        run: ./gradlew assembleRelease
 
       - name: Upload signed apk to GitHub
         uses: actions/upload-artifact@v4
